@@ -11,7 +11,7 @@ const dbcon = mysql.createConnection({
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'botkub'
+    database: 'bot'
 })
 
 
@@ -98,20 +98,30 @@ const Test = async () => {
             if (err) throw err
 
             rs.map((item, index) => {
-                console.log("Buy : ", item.email_holder, item.sym_coin, item.buy_point)
+                // console.log("Buy : ", item.email_holder, item.sym_coin, item.buy_point)
                 axios.get("https://api.bitkub.com/api/market/ticker?sym=" + item.sym_coin).then((res) => {
                     let cvt = Object.entries(res.data)
                     let last_price = cvt[0][1].last
                     let sym = cvt[0][0]
                     if (item.tradable === 1) {
                         if (item.bought !== 1) {
+                            console.log(item.bought)
+                            console.log(last_price, ' : ', item.buy_point)
                             if (last_price <= item.buy_point) {
-                                dbcon.query("UPDATE market SET bought = ? WHERE email_holder = ? AND sym_coin = ?", [1, item.email_holder, item.sym_coin], (err, rs) => {
+
+                                console.log('buy')
+
+                                dbcon.query("UPDATE market SET bought = ? WHERE email_holder = ? AND sym_coin = ?", [1, rs[0].email_holder, rs[0].sym_coin], (err, rs) => {
                                     if (err) throw err
 
-                                    console.log("Buy Right Now And Update database", item.email_holder ," : ", item.sym_coin)
+                                    console.log('Success')
                                 })
+
+                            } else {
+                                console.log("Do nothing")
                             }
+                        } else {
+                            console.log("You bought it already")
                         }
                     }
                 })
@@ -122,6 +132,153 @@ const Test = async () => {
 
 
 // Test()
+
+
+// const getAllCoin = (coin) => {
+//     return new Promise((resolve, reject) => {
+//         try {
+//             axios.get('https://api.bitkub.com/api/market/ticker?sym='+coin, {
+//                 headers: {
+//                     'Cache-Control': 'no-cache'
+//                 }
+//             }).then((res) => {
+//                 resolve(res.data)
+//             })
+//         } catch (err) {
+//             reject(err)
+//         }
+//     })
+// }
+
+
+
+const Trade = () => {
+
+    setInterval(() => {
+        axios.get('https://api.bitkub.com/api/market/ticker?sym=THB_DOGE', {
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        }).then((res) => {
+            // console.log(res.data.THB_DOGE.last)
+            dbcon.query("SELECT * FROM market WHERE email = ? AND sym_coin = ?", ['play21947@gmail.com', 'THB_DOGE'], (err, rs) => {
+                if (err) throw err
+        
+                let percent = res.data.THB_DOGE.last / (rs[0].total_money / rs[0].total_coin)
+        
+                let result
+        
+                if (percent < 0) {
+                    result = (percent - 1) * 100
+                } else {
+                    result = (percent * 100) - 100
+                }
+
+                console.log(result)
+
+                // console.log(rs[0].c1)
+                // console.log(rs[0].c2)
+                // console.log(rs[0].c3)
+
+
+                if(result >= rs[0].take_profit){ // Sell
+                    if(rs[0].status_sell == 0){
+                        console.log("Sell!")
+                        dbcon.query("UPDATE market SET status_sell = ? WHERE email = ? AND sym_coin = ?", [1, 'play21947@gmail.com', 'THB_DOGE'], (err, rs)=>{
+                            if(err) throw err
+    
+                            console.log("Sell Updated")
+                        })
+                    }
+                }
+
+
+
+
+
+                if(rs[0].s1 == 0){
+                    if(result <= rs[0].c1 && result > rs[0].c2){ // Buy 1
+
+                        let price_buy = Math.abs(((result / 100) - 1) * res.data.THB_DOGE.last)
+    
+                        console.log(price_buy)
+    
+                        placeBid('THB_DOGE', (rs[0].investor_money * rs[0].v1), price_buy, "limit")
+
+                        console.log("Buy Doge : ", price_buy)
+    
+                        dbcon.query("UPDATE market SET s1 = ? WHERE email = ? AND sym_coin = ?", [1, 'play21947@gmail.com', 'THB_DOGE'], (err, rs)=>{
+                            if(err) throw err
+    
+                            console.log("Updated C1")
+                        })
+    
+                    }
+    
+                }
+
+
+                if(rs[0].s2 == 0){
+                    if(result <= rs[0].c2 && result > rs[0].c3){
+
+                        let price_buy = Math.abs(((result / 100) - 1) * res.data.THB_DOGE.last)
+    
+                        console.log(price_buy)
+    
+                        placeBid('THB_DOGE', (rs[0].investor_money * rs[0].v2), price_buy, "limit")
+
+                        console.log("Buy Doge : ", price_buy)
+    
+                        dbcon.query("UPDATE market SET s2 = ? WHERE email = ? AND sym_coin = ?", [1 ,'play21947@gmail.com', 'THB_DOGE'], (err, rs)=>{
+                            if(err) throw err
+    
+                            console.log("Updated c2")
+                        })
+    
+                        console.log("Buy C2")
+                    }
+                }
+
+
+                if(result <= rs[0].c3 && result > -100){
+                    let price_buy = Math.abs(((result / 100) - 1) * res.data.THB_DOGE.last)
+    
+                    console.log(price_buy)
+
+                    placeBid('THB_DOGE', (rs[0].investor_money * rs[0].v3), price_buy, "limit")
+
+                    console.log("Buy Doge : ", price_buy)
+
+                    dbcon.query("UPDATE market SET s3 = ? WHERE email = ? AND sym_coin = ?", [1 ,'play21947@gmail.com', 'THB_DOGE'], (err, rs)=>{
+                        if(err) throw err
+
+                        console.log("Updated c3")
+                    })
+
+                    console.log("Buy C3")
+                }
+        
+            })
+        })
+    }, 1000)
+
+    // dbcon.query("SELECT * FROM market WHERE email = ? AND sym_coin = ?", ['play21947@gmail.com', 'THB_DOGE'], (err, rs) => {
+    //     if (err) throw err
+
+    //     let percent = coin[0][1].last / (rs[0].total_money / rs[0].total_coin)
+
+    //     let result
+
+    //     if (percent < 0) {
+    //         result = (percent - 1) * 100
+    //     } else {
+    //         result = (percent * 100) - 100
+    //     }
+
+    // })
+}
+
+Trade()
 
 
 
@@ -274,6 +431,18 @@ app.post('/update_market', (req, res) => {
     })
 
     // dbcon.query("UPDATE market SET ")
+})
+
+
+app.post('/trade', (req, res) => {
+
+    let email = req.body.email
+
+    dbcon.query("SELECT * FROM market WHERE tradable = ? AND email = ?", [1, email], (err, rs) => {
+        if (err) throw err
+
+        res.json(rs)
+    })
 })
 
 
