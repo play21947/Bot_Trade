@@ -170,9 +170,15 @@ const TradeRemake = () => {
         dbcon.query("SELECT * FROM market WHERE tradable = ?", [1], (err, rs) => {
             if (err) throw err
 
+
             rs.map((item) => {
                 axios.get("https://api.bitkub.com/api/market/ticker?sym=" + item.sym_coin).then((res) => {
                     // console.log(res.data)
+
+
+                    // dbcon.query("SELECT SUM(last_profit) FROM log WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, test)=>{
+                    //     console.log(test)
+                    // })
 
                     let Coin = Object.entries(res.data)
 
@@ -265,41 +271,58 @@ const TradeRemake = () => {
 
                                 let finally_profit = (profit_fee - item.total_money)
 
-                                dbcon.query("INSERT INTO log (email, sym_coin, side , rec_coin, price_buy_sell, investor_money, profit, last_profit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [item.email, item.sym_coin, "sell", balance_coin[0][1], Coin[0][1].last, item.total_money, last_profit, finally_profit], (err, log) => {
+                                const date = new Date()
+
+                                let day = String(date).split(' ')[2]
+                                let month = String(date).split(' ')[1]
+                                let years = String(date).split(' ')[3]
+                                let time = String(date).split(' ')[4]
+
+                                let times = [day, month, years, time]
+
+
+                                dbcon.query("INSERT INTO log (email, sym_coin, side , rec_coin, price_buy_sell, investor_money, profit, last_profit, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [item.email, item.sym_coin, "sell", balance_coin[0][1], Coin[0][1].last, item.total_money, last_profit, finally_profit, times], (err, log) => {
                                     if (err) throw err
 
                                     console.log(pass("|--INSERTED 'LOG'--|"))
 
 
-                                    dbcon.query("SELECT * FROM history WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, history)=>{
-                                        if(err) throw err
+                                    dbcon.query("SELECT * FROM history WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, history) => {
+                                        if (err) throw err
 
-                                        if(history[0].length > 0){
-                                            dbcon.query("SELECT SUM(last_profit) FROM log WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, sum)=>{
-                                                if(err) throw err
+                                        if (history.length > 0) {
+                                            dbcon.query("SELECT SUM(last_profit) FROM log WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, sum) => {
+                                                if (err) throw err
 
-                                                dbcon.query("UPDATE history SET profit = ? WHERE email = ? AND sym_coin = ?", [sum ,item.email, item.sym_coin], (err, historyUpdate)=>{
-                                                    if(err) throw err
-    
+                                                let convert = Object.values(sum[0])[0]
+
+                                                dbcon.query("UPDATE history SET profit = ? WHERE email = ? AND sym_coin = ?", [convert, item.email, item.sym_coin], (err, historyUpdate) => {
+                                                    if (err) throw err
+
                                                     console.log(pass("--UPDATE HISTORY--"))
 
                                                     dbcon.query("UPDATE market SET total_money = ?, total_coin = ?, trailling_stop = ?, tradable = ?, bought = ?, s1 = ?, s2 = ?, s3 = ?, status_sell = ? WHERE email = ? AND sym_coin = ?", [0, 0, rs[0].take_profit, 0, 0, 0, 0, 0, 0, item.email, item.sym_coin], (err, rs5) => {
                                                         if (err) throw err
-                
+
                                                         console.log(pass("RESET AND WAITING"))
                                                     })
                                                 })
                                             })
-                                        }else{
-                                            dbcon.query("SELECT SUM(last_profit) FROM log WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, sum)=>{
-                                                dbcon.query("INSERT INTO (email, sym_coin, profit) VALUES (? , ?, ?)", [item.email, item.sym_coin, sum], (err, historyInsert)=>{
-                                                    if(err) throw err
-                                                    
+                                        } else {
+                                            dbcon.query("SELECT SUM(last_profit) FROM log WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, sum) => {
+
+                                                // console.log(Object.values(sum[0])[0])
+
+                                                let convert = Object.values(sum[0])[0]
+
+                                                dbcon.query("INSERT INTO history (email, sym_coin, profit) VALUES (? , ?, ?)", [item.email, item.sym_coin, convert], (err, historyInsert) => {
+                                                    if (err) throw err
+
                                                     console.log(pass("--INSERT HISTORY--"))
 
                                                     dbcon.query("UPDATE market SET total_money = ?, total_coin = ?, trailling_stop = ?, tradable = ?, bought = ?, s1 = ?, s2 = ?, s3 = ?, status_sell = ? WHERE email = ? AND sym_coin = ?", [0, 0, rs[0].take_profit, 0, 0, 0, 0, 0, 0, item.email, item.sym_coin], (err, rs5) => {
                                                         if (err) throw err
-                
+
                                                         console.log(pass("RESET AND WAITING"))
                                                     })
                                                 })
@@ -843,12 +866,12 @@ app.post("/log", (req, res) => {
 })
 
 
-app.post("/get_log", (req, res)=>{
+app.post("/get_log", (req, res) => {
 
     let email = req.body.email
 
-    dbcon.query("SELECT * FROM log WHERE email = ? AND side = ?", [email, 'sell'], (err, rs)=>{
-        if(err) throw err
+    dbcon.query("SELECT * FROM log WHERE email = ? AND side = ?", [email, 'sell'], (err, rs) => {
+        if (err) throw err
 
         res.json(rs)
     })
