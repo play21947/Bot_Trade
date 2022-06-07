@@ -1,3 +1,6 @@
+//Sometimes percent to buy or sell is arrive but thay don't do any thing that means cut the float behind then up in front number
+
+
 const express = require('express')
 const cors = require('cors')
 const mysql = require('mysql2')
@@ -36,7 +39,7 @@ const TS = () => {
 }
 
 function signBody(body) {
-    const digest = crypto.createHmac('sha256', '8d0cac54bd167c0eee0e3dce0d60b07a').update(JSON.stringify(body)).digest('hex');
+    const digest = crypto.createHmac('sha256', 'your secret key').update(JSON.stringify(body)).digest('hex');
     return digest;
 }
 
@@ -58,7 +61,7 @@ const placeBid = (symbol, amount, rate, type) => { // BUY
                 headers: {
                     'Accept': 'application/json',
                     'Content-type': 'application/json',
-                    'X-BTK-APIKEY': 'ab92d6af6744f46643072fb8bcd405a6'
+                    'X-BTK-APIKEY': 'your api key'
                 },
                 data: body,
             }).then(res => resolve(res.data));;
@@ -87,7 +90,7 @@ function placeAsk(symbol, amount, rate, type) {
                 headers: {
                     'Accept': 'application/json',
                     'Content-type': 'application/json',
-                    'X-BTK-APIKEY': 'ab92d6af6744f46643072fb8bcd405a6'
+                    'X-BTK-APIKEY': 'your api key'
                 },
                 data: body,
             }).then(res => resolve(res.data));;
@@ -140,7 +143,7 @@ const Info = (id, hash, sym_coin) => {
             method: 'post',
             url: "https://api.bitkub.com/api/market/order-info",
             headers: {
-                'X-BTK-APIKEY': 'ab92d6af6744f46643072fb8bcd405a6'
+                'X-BTK-APIKEY': 'your api key'
             },
             data: body
         }).then((res) => {
@@ -148,6 +151,7 @@ const Info = (id, hash, sym_coin) => {
         })
     })
 }
+
 
 
 const GetWallet = (email) => {
@@ -231,128 +235,129 @@ const TradeRemake = () => {
                     // console.log(item.c3)
 
 
-                    if (result >= item.take_profit) { // 11 >= 10 => 11
+                    if (result >= item.trailling_stop) { // 11 >= 10 => 11
                         dbcon.query("UPDATE market SET trailling_stop = ?, status_sell = ? WHERE email = ? AND sym_coin = ?", [result, 1, item.email, item.sym_coin], (err, rs) => {
                             if (err) throw err
 
                             console.log(pass("Update Trailling Stop"))
 
                         })
-                    }
+                    } else {
+                        // SELL THIS HERE
+
+                        if (result <= percent_flex && item.status_sell == 1) {
+
+                            console.log(pass("Watch to sell"))
+
+                            GetWallet(item.email).then((wallet) => {
+                                let convert = Object.entries(wallet.result)
+
+                                // console.log(item)
+
+                                let split_word = item.sym_coin.split('THB_')[1]
 
 
-                    // SELL THIS HERE
+                                let balance_coin = convert.filter((specific) => {
+                                    return specific[0] == split_word
+                                })
 
-                    if (result <= percent_flex && item.status_sell == 1) {
+                                placeAsk(item.sym_coin, balance_coin[0][1], 0, 'market').then((res) => {
+                                    console.log(res)
 
-                        GetWallet(rs[0].email).then((wallet) => {
-                            let convert = Object.entries(wallet.result)
+                                    console.log(pass("----Watch Your Wallet----"))
 
-                            // console.log(item)
+                                    console.log(pass("SELL! : ", item.sym_coin, ": ", balance_coin[0][1]))
 
-                            let split_word = item.sym_coin.split('THB_')[1]
-
-
-                            let balance_coin = convert.filter((specific) => {
-                                return specific[0] == split_word
-                            })
-
-                            placeAsk(item.sym_coin, balance_coin[0][1], 0, 'market').then((res) => {
-                                console.log(res)
-
-                                console.log(pass("----Watch Your Wallet----"))
-
-                                console.log(pass("SELL! : ", item.sym_coin, ": ", balance_coin[0][1]))
-
-                                let last_profit = balance_coin[0][1] * Coin[0][1].last
+                                    let last_profit = balance_coin[0][1] * Coin[0][1].last
 
 
-                                let profit_fee = last_profit * 0.9975
+                                    let profit_fee = last_profit * 0.9975
 
-                                let finally_profit = (profit_fee - item.total_money)
+                                    let finally_profit = (profit_fee - item.total_money)
 
-                                const date = new Date()
+                                    const date = new Date()
 
-                                let day = String(date).split(' ')[2]
-                                let month = String(date).split(' ')[1]
-                                let years = String(date).split(' ')[3]
-                                let time = String(date).split(' ')[4]
+                                    let day = String(date).split(' ')[2]
+                                    let month = String(date).split(' ')[1]
+                                    let years = String(date).split(' ')[3]
+                                    let time = String(date).split(' ')[4]
 
-                                let times = [day, month, years, time]
-
-
-                                dbcon.query("INSERT INTO log (email, sym_coin, side , rec_coin, price_buy_sell, investor_money, profit, last_profit, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [item.email, item.sym_coin, "sell", balance_coin[0][1], Coin[0][1].last, item.total_money, last_profit, finally_profit, times], (err, log) => {
-                                    if (err) throw err
-
-                                    console.log(pass("|--INSERTED 'LOG'--|"))
+                                    let times = JSON.stringify([day, month, years, time])
 
 
-                                    dbcon.query("SELECT * FROM history WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, history) => {
+                                    dbcon.query("INSERT INTO log (email, sym_coin, side , rec_coin, price_buy_sell, investor_money, profit, last_profit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [item.email, item.sym_coin, "sell", balance_coin[0][1], Coin[0][1].last, item.total_money, last_profit, finally_profit], (err, log) => {
                                         if (err) throw err
 
-                                        if (history.length > 0) {
-                                            dbcon.query("SELECT SUM(last_profit) FROM log WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, sum) => {
-                                                if (err) throw err
+                                        console.log(pass("|--INSERTED 'LOG'--|"))
 
-                                                let convert = Object.values(sum[0])[0]
 
-                                                dbcon.query("UPDATE history SET profit = ? WHERE email = ? AND sym_coin = ?", [convert, item.email, item.sym_coin], (err, historyUpdate) => {
+                                        dbcon.query("SELECT * FROM history WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, history) => {
+                                            if (err) throw err
+
+                                            if (history.length > 0) {
+                                                dbcon.query("SELECT SUM(last_profit) FROM log WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, sum) => {
                                                     if (err) throw err
 
-                                                    console.log(pass("--UPDATE HISTORY--"))
+                                                    let convert = Object.values(sum[0])[0]
 
-                                                    dbcon.query("UPDATE market SET total_money = ?, total_coin = ?, trailling_stop = ?, tradable = ?, bought = ?, s1 = ?, s2 = ?, s3 = ?, status_sell = ? WHERE email = ? AND sym_coin = ?", [0, 0, rs[0].take_profit, 0, 0, 0, 0, 0, 0, item.email, item.sym_coin], (err, rs5) => {
+                                                    dbcon.query("UPDATE history SET profit = ? WHERE email = ? AND sym_coin = ?", [convert, item.email, item.sym_coin], (err, historyUpdate) => {
                                                         if (err) throw err
 
-                                                        console.log(pass("RESET AND WAITING"))
+                                                        console.log(pass("--UPDATE HISTORY--"))
+
+                                                        dbcon.query("UPDATE market SET total_money = ?, total_coin = ?, trailling_stop = ?, tradable = ?, bought = ?, s1 = ?, s2 = ?, s3 = ?, status_sell = ? WHERE email = ? AND sym_coin = ?", [0, 0, rs[0].take_profit, 0, 0, 0, 0, 0, 0, item.email, item.sym_coin], (err, rs5) => {
+                                                            if (err) throw err
+
+                                                            console.log(pass("RESET AND WAITING"))
+                                                        })
                                                     })
                                                 })
-                                            })
-                                        } else {
-                                            dbcon.query("SELECT SUM(last_profit) FROM log WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, sum) => {
+                                            } else {
+                                                dbcon.query("SELECT SUM(last_profit) FROM log WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, sum) => {
 
-                                                // console.log(Object.values(sum[0])[0])
+                                                    // console.log(Object.values(sum[0])[0])
 
-                                                let convert = Object.values(sum[0])[0]
+                                                    let convert = Object.values(sum[0])[0]
 
-                                                dbcon.query("INSERT INTO history (email, sym_coin, profit) VALUES (? , ?, ?)", [item.email, item.sym_coin, convert], (err, historyInsert) => {
-                                                    if (err) throw err
-
-                                                    console.log(pass("--INSERT HISTORY--"))
-
-                                                    dbcon.query("UPDATE market SET total_money = ?, total_coin = ?, trailling_stop = ?, tradable = ?, bought = ?, s1 = ?, s2 = ?, s3 = ?, status_sell = ? WHERE email = ? AND sym_coin = ?", [0, 0, rs[0].take_profit, 0, 0, 0, 0, 0, 0, item.email, item.sym_coin], (err, rs5) => {
+                                                    dbcon.query("INSERT INTO history (email, sym_coin, profit) VALUES (? , ?, ?)", [item.email, item.sym_coin, convert], (err, historyInsert) => {
                                                         if (err) throw err
 
-                                                        console.log(pass("RESET AND WAITING"))
+                                                        console.log(pass("--INSERT HISTORY--"))
+
+                                                        dbcon.query("UPDATE market SET total_money = ?, total_coin = ?, trailling_stop = ?, tradable = ?, bought = ?, s1 = ?, s2 = ?, s3 = ?, status_sell = ? WHERE email = ? AND sym_coin = ?", [0, 0, rs[0].take_profit, 0, 0, 0, 0, 0, 0, item.email, item.sym_coin], (err, rs5) => {
+                                                            if (err) throw err
+
+                                                            console.log(pass("RESET AND WAITING"))
+                                                        })
                                                     })
                                                 })
-                                            })
-                                        }
+                                            }
+                                        })
+
+
+                                        // Actually That is in this here
+
+                                        // dbcon.query("UPDATE market SET total_money = ?, total_coin = ?, trailling_stop = ?, tradable = ?, bought = ?, s1 = ?, s2 = ?, s3 = ?, status_sell = ? WHERE email = ? AND sym_coin = ?", [0, 0, rs[0].take_profit, 0, 0, 0, 0, 0, 0, item.email, item.sym_coin], (err, rs5) => {
+                                        //     if (err) throw err
+
+                                        //     console.log(pass("RESET AND WAITING"))
+                                        // })
                                     })
 
-
-                                    // Actually That is in this here
-
-                                    // dbcon.query("UPDATE market SET total_money = ?, total_coin = ?, trailling_stop = ?, tradable = ?, bought = ?, s1 = ?, s2 = ?, s3 = ?, status_sell = ? WHERE email = ? AND sym_coin = ?", [0, 0, rs[0].take_profit, 0, 0, 0, 0, 0, 0, item.email, item.sym_coin], (err, rs5) => {
-                                    //     if (err) throw err
-
-                                    //     console.log(pass("RESET AND WAITING"))
-                                    // })
                                 })
 
                             })
 
-                        })
+                            setTimeout(() => {
+                                dbcon.query("UPDATE market SET start_price = ?, tradable = ? WHERE email = ? AND sym_coin = ?", [Coin[0][1].last, 1, item.email, item.sym_coin], (err, rs) => {
+                                    if (err) throw err
 
-                        setTimeout(() => {
-                            dbcon.query("UPDATE market SET start_price = ?, tradable = ? WHERE email = ? AND sym_coin = ?", [Coin[0][1].last, 1, item.email, item.sym_coin], (err, rs) => {
-                                if (err) throw err
+                                    console.log(pass("Starting"))
+                                })
+                            }, item.timer)
 
-                                console.log(pass("Starting"))
-                            })
-                        }, item.timer)
-
-                        // clearInterval(running)
+                            // clearInterval(running)
+                        }
                     }
 
                     // placeBid(item.sym_coin, (item.investor_money * item.v1), Start, 'limit').then((res)=>{
@@ -418,7 +423,7 @@ const TradeRemake = () => {
 
                                                     // Then Inserted log
 
-                                                    dbcon.query("UPDATE market SET total_money = ? ,total_coin = ?, bought = ?, order_id = ?, order_hash = ?, s1 = ? WHERE email = ? AND sym_coin = ?", [new_money, item.temp_coin, 1, 0, '', 1, item.email, item.sym_coin], (err, rs) => {
+                                                    dbcon.query("UPDATE market SET total_money = ? ,total_coin = ?, bought = ?, order_id = ?, order_hash = ?, s1 = ?, fee = ? WHERE email = ? AND sym_coin = ?", [new_money, item.temp_coin, 1, 0, '', 1, res.result.fee , item.email, item.sym_coin], (err, rs) => {
                                                         if (err) throw err
 
                                                         console.log(pass("UPDATE C1"))
@@ -484,10 +489,18 @@ const TradeRemake = () => {
 
                                             console.log(pass("|--INSERTED 'LOG'--|"))
 
-                                            dbcon.query("UPDATE market SET total_money = ? ,total_coin = ?, bought = ?, s2 = ?, order_id = ?, order_hash = ? WHERE email = ? AND sym_coin = ?", [new_money2, item.temp_coin, 2, 1, 0, '', item.email, item.sym_coin], (err, rs) => {
-                                                if (err) throw err
+                                            dbcon.query("SELECT fee FROM market WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, rss)=>{
+                                                if(err) throw err
 
-                                                console.log(pass('UPDATE C2'))
+                                                let new_fee = rss[0].fee + res.result.fee
+                                        
+                                                dbcon.query("UPDATE market SET total_money = ? ,total_coin = ?, bought = ?, s2 = ?, order_id = ?, order_hash = ?, fee = ? WHERE email = ? AND sym_coin = ?", [new_money2, item.temp_coin, 2, 1, 0, '', new_fee , item.email, item.sym_coin], (err, rs) => {
+                                                    if (err) throw err
+    
+                                                    console.log(pass('UPDATE C2'))
+                                                })
+                                                // res.json(rss[0].fee)
+                                        
                                             })
                                         })
                                     }
@@ -538,10 +551,16 @@ const TradeRemake = () => {
 
                                             console.log(pass("|--INSERTED 'LOG'--|"))
 
-                                            dbcon.query("UPDATE market SET total_money = ? ,total_coin = ?, bought = ?, s3 = ?, order_id = ?, order_hash = ? WHERE email = ? AND sym_coin = ?", [new_money3, item.temp_coin, 3, 1, 0, '', item.email, item.sym_coin], (err, rs) => {
-                                                if (err) throw err
+                                            dbcon.query("SELECT fee FROM market WHERE email = ? AND sym_coin = ?", [item.email, item.sym_coin], (err, rss)=>{
+                                                if(err) throw err
 
-                                                console.log(pass("UPDATE C3"))
+                                                let new_fee = rss[0].fee + res.result.fee
+
+                                                dbcon.query("UPDATE market SET total_money = ? ,total_coin = ?, bought = ?, s3 = ?, order_id = ?, order_hash = ?, fee = ? WHERE email = ? AND sym_coin = ?", [new_money3, item.temp_coin, 3, 1, 0, '', new_fee ,item.email, item.sym_coin], (err, rs) => {
+                                                    if (err) throw err
+    
+                                                    console.log(pass("UPDATE C3"))
+                                                })
                                             })
                                         })
                                     }
@@ -554,7 +573,7 @@ const TradeRemake = () => {
                 })
             })
         })
-    }, 1000)
+    }, 2000)
 }
 
 TradeRemake()
@@ -568,7 +587,12 @@ TradeRemake()
 // })
 
 app.get('/test', (req, res) => {
-    res.json({ status: true })
+    dbcon.query("SELECT fee FROM market WHERE email = ? AND sym_coin = ?", ['pitak@gmail.com', 'THB_ETH'], (err, rss)=>{
+        if(err) throw err
+
+        res.json(rss[0].fee)
+
+    })
 })
 
 
@@ -857,8 +881,9 @@ app.post("/history", (req, res) => {
 
 app.post("/log", (req, res) => {
     let email = req.body.email
+    let page = req.body.page
 
-    dbcon.query("SELECT * FROM log WHERE email = ? ORDER BY id DESC", [email], (err, rs) => {
+    dbcon.query("SELECT * FROM log WHERE email = ? ORDER BY id DESC LIMIT 15 OFFSET ?", [email, page], (err, rs) => {
         if (err) throw err
 
         res.json(rs)
@@ -874,6 +899,18 @@ app.post("/get_log", (req, res) => {
         if (err) throw err
 
         res.json(rs)
+    })
+})
+
+
+app.post("/delete_coin", (req, res) => {
+    let email = req.body.email
+    let sym_coin = req.body.sym_coin
+
+    dbcon.query("DELETE FROM market WHERE email = ? AND sym_coin = ?", [email, sym_coin], (err, rs) => {
+        if (err) throw err
+
+        res.json({ deleted: true })
     })
 })
 
